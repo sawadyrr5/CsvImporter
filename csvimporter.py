@@ -18,13 +18,14 @@ class _CsvImporterBase:
         """
         self._con = connection  # DB-API connection object
 
-    def read_csv(self, file, table, header=False, mapping=None):
+    def read_csv(self, file, table, header=False, mapping=None, skiprows=0):
         """
         Read source csv file and set target table.
         :param file: Set the source csv filename.
         :param table: Set the target table name.
         :param header: Set the presence or absence of a header.
         :param mapping: Set the condition to convert the column name. {"oldname": 'newname'}
+        :param skiprows: Set number of skipping first rows.
         """
         if header is False and mapping:
             msg = 'Can not set mapping if header is not True'
@@ -55,10 +56,10 @@ class CsvImporter(_CsvImporterBase):
         self._table = None  # target table object
         self._rst = None  # recordset object
 
-    def read_csv(self, file, table, header=False, mapping=None):
-        super().read_csv(file, table, header, mapping)
+    def read_csv(self, file, table, header=False, mapping=None, skiprows=None):
+        super().read_csv(file, table, header, mapping, skiprows)
 
-        self._csv = Csv(file, header)
+        self._csv = Csv(file, header, skiprows)
         self._table = Table(self._con, table)
         self._rst = Recordset(self._csv, self._table, mapping)
 
@@ -70,7 +71,6 @@ class CsvImporter(_CsvImporterBase):
     def execute(self):
         cursor = self._con.cursor()
         for sql in self._rst.build_insert_sql():
-            print(sql)
             cursor.execute(sql)
             self._con.commit()
 
@@ -82,25 +82,36 @@ class CsvImporter(_CsvImporterBase):
 
 
 class Csv:
-    def __init__(self, file, has_header=False):
+    def __init__(self, file, has_header=False, skiprows=0):
         self._file = file
         self._has_header = has_header
+        self._skiprows = skiprows
         self._header = None
         self._rowcount = None
 
         with open(file, "r") as f:
             reader = csv.reader(f)
 
+            if self._skiprows > 0:
+                for i in range(self._skiprows):
+                    next(reader)
+
             if self._has_header:
-                for row in reader:
+                for row in reader[self._skiprows:]:
                     self._header = row
                     break
 
             self._rowcount = len([row for row in reader])
+            if self._has_header:
+                self._rowcount -= 1
 
     def reader(self):
         with open(self._file, "r") as f:
             reader = csv.reader(f)
+
+            if self._skiprows > 0:
+                for i in range(self._skiprows):
+                    next(reader)
 
             if self._has_header:
                 next(reader)
