@@ -71,6 +71,7 @@ class CsvImporter(_CsvImporterBase):
     def execute(self):
         cursor = self._con.cursor()
         for sql in self._rst.build_insert_sql():
+            print("Execute this SQL:", sql)
             cursor.execute(sql)
             self._con.commit()
 
@@ -87,37 +88,29 @@ class Csv:
         self._has_header = has_header
         self._skiprows = skiprows
         self._header = None
-        self._rowcount = None
+        self._rows = []
+        self._rowcount = 0
 
-        with open(file, "r") as f:
-            reader = csv.reader(f)
-
-            if self._skiprows > 0:
-                for i in range(self._skiprows):
-                    next(reader)
-
-            if self._has_header:
-                for row in reader[self._skiprows:]:
-                    self._header = row
-                    break
-
-            self._rowcount = len([row for row in reader])
-            if self._has_header:
-                self._rowcount -= 1
-
-    def reader(self):
         with open(self._file, "r") as f:
             reader = csv.reader(f)
 
-            if self._skiprows > 0:
+            if self._skiprows:
                 for i in range(self._skiprows):
                     next(reader)
 
-            if self._has_header:
-                next(reader)
+            _rows = list(reader)
 
-            for row in reader:
-                yield row
+            if self._has_header:
+                self._header = _rows[0]
+                self._rows = _rows[1:]
+            else:
+                self._rows = _rows
+
+            self._rowcount = len(self._rows)
+
+    def reader(self):
+        for row in self._rows:
+            yield row
 
     @property
     def header(self):
